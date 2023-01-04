@@ -1,0 +1,22 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+selenium = "*"
+pydiscourse = "*"
+requests-html = "*"
+pyyaml = "*"
+
+[dev-packages]
+flake8 = "*"
+black = "*"
+isort = "*"
+
+[requires]
+python_version = "3.8"
+
+[scripts]
+gdpr = "python cangdpr/gdpr.py"
+lint = "sh -c 'black cangdpr; isort cangdpr; flake8 cangdpr'"
