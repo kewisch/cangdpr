@@ -40,6 +40,12 @@ def main():
         "email", nargs="*", help="one or more email addresses to look up"
     )
     parser.add_argument(
+        "-l",
+        "--query-tasks",
+        action="store_true",
+        help="Emails are task ids, not emails",
+    )
+    parser.add_argument(
         "-n", "--dry", action="store_true", help="dry run on Salesforce"
     )
     parser.add_argument("-s", "--sid", help="Salesforce SID Cookie (optional)")
@@ -58,6 +64,7 @@ def main():
     ubuntudiscourse = CanDiscourseClient(config["services"]["discourse"]["ubuntu"])
     snapdiscourse = CanDiscourseClient(config["services"]["discourse"]["snap"])
     indico = Indico(config["services"]["indico"]["prod"])
+    sf = CanSalesforce(SF_COMPANY, SF_GDPR_OWNER, sid=args.sid, dry=args.dry)
 
     if args.debug:
         level = logging.DEBUG
@@ -72,18 +79,15 @@ def main():
 
     if len(args.email):
         for email in args.email:
+            if args.query_tasks:
+                email = sf.get_task_email(email)
+
             urls = profile_urls_get(email)
             if len(urls) < 1:
                 print("{} has no account data".format(email))
             else:
                 print("{}:\n\t{}".format(email, "\n\t".join(urls)))
     else:
-        sf = CanSalesforce(SF_COMPANY, SF_GDPR_OWNER, args.dry)
-        if args.sid:
-            sf.sid = args.sid
-        else:
-            sf.prompt_sid()
-
         data = sf.get_tasks()
         for record in data:
             urls = profile_urls_get(record.email)
