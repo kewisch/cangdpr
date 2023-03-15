@@ -15,7 +15,7 @@ black = "*"
 isort = "*"
 
 [requires]
-python_version = "3.8"
+python_version = "3"
 
 [scripts]
 gdpr = "python cangdpr/gdpr.py"
