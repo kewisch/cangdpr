@@ -9,7 +9,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 
 class CanSalesforce:
-
     Record = namedtuple("SFRecord", "id,email")
 
     def __init__(self, company, gdpr_owner, sid=None, dry=False):

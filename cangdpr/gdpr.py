@@ -50,9 +50,12 @@ def main():
     )
     parser.add_argument("-s", "--sid", help="Salesforce SID Cookie (optional)")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debugging")
+    parser.add_argument(
+        "--config", default="~/.canonicalrc", help="Config file locataion"
+    )
     args = parser.parse_args()
 
-    configpath = os.path.expanduser("~/.canonicalrc")
+    configpath = os.path.expanduser(args.config)
     statinfo = os.stat(configpath, dir_fd=None, follow_symlinks=True)
     if (statinfo.st_mode & (stat.S_IROTH | stat.S_IRGRP)) != 0:
         print("Credentials file is not chmod 400")
