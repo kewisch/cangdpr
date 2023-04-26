@@ -4,12 +4,8 @@ Tool to automate GDPR lookups on the Community Team at Canonical. Gets the job d
 
 ## Usage
 
-```
-git clone https://github.com/kewisch/cangdpr
-cd cangdpr
-pipenv install
-pipenv run gdpr --help
-```
+This project uses setuptools via `pyproject.toml`. Install it as you like, one way to do so is using
+`pipx install --editable .` in the source repo. It installs a `cangdpr` command:
 
 ```
 usage: cangdpr [-h] [-n] [-s SID] [-d] [email [email ...]]
@@ -30,7 +26,7 @@ If no email is specified, Salesforce will be queried for pending tasks
 
 ## Configuration
 
-You need a `~/.canonicalrc` file that has `chmod 400`. It is yaml with the following content:
+You need a `~/.canonicalrc` like so, it should be mode 600. Using a password manager is recommended, for example using 1Password and `--config <(op inject -i ~/.canonicalrc)`
 
 ```yaml
 services:

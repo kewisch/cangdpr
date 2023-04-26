@@ -6,9 +6,10 @@ import stat
 import sys
 
 import yaml
-from discourse import CanDiscourseClient
-from indico import Indico
-from salesforce import CanSalesforce
+
+from .discourse import CanDiscourseClient
+from .indico import Indico
+from .salesforce import CanSalesforce
 
 SF_GDPR_OWNER = "00G4K000000gkG9UAI"  # Assignee: GDPR - Snap
 SF_COMPANY = "canonical"
@@ -56,9 +57,13 @@ def main():
     args = parser.parse_args()
 
     configpath = os.path.expanduser(args.config)
+    # Check if the config file is locked to mode 600. Add a loophole in case it is being passed in
+    # via pipe, it appears on macOS the pipes are mode 660 instead.
     statinfo = os.stat(configpath, dir_fd=None, follow_symlinks=True)
-    if (statinfo.st_mode & (stat.S_IROTH | stat.S_IRGRP)) != 0:
-        print("Credentials file is not chmod 400")
+    if (statinfo.st_mode & (stat.S_IROTH | stat.S_IRGRP)) != 0 and not stat.S_ISFIFO(
+        statinfo.st_mode
+    ):
+        print(f"Credentials file {configpath} is not chmod 600")
         sys.exit(1)
 
     with open(configpath) as fd:
