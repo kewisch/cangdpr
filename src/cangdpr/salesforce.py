@@ -5,17 +5,23 @@ from urllib.parse import urljoin
 
 import requests
 from selenium import webdriver
+from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
+from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 
 
 class CanSalesforce:
     Record = namedtuple("SFRecord", "id,email")
 
-    def __init__(self, company, gdpr_owner, sid=None, dry=False):
+    def __init__(
+        self, company, gdpr_owner, sid=None, dry=False, profile=None, binary=None
+    ):
         self.company = company
         self.gdpr_owner = gdpr_owner
         self.sid = sid
         self.dry = dry
+        self.profile = profile
+        self.binary = binary
 
     @property
     def base_url(self):
@@ -44,7 +50,17 @@ class CanSalesforce:
                 )
             )
 
-        driver = webdriver.Firefox()
+        options = Options()
+
+        if self.profile:
+            profile = webdriver.FirefoxProfile(self.profile)
+            options.profile = profile
+
+        if self.binary:
+            binary = FirefoxBinary(self.binary)
+            options.binary = binary
+
+        driver = webdriver.Firefox(options=options)
         wait = WebDriverWait(driver, 500)
 
         driver.get("https://{}.my.salesforce.com/".format(self.company))

@@ -2,3 +2,4 @@ geckodriver.log
 build/
 __pycache__
 *.egg-info
+profile

@@ -72,7 +72,16 @@ def main():
     ubuntudiscourse = CanDiscourseClient(config["services"]["discourse"]["ubuntu"])
     snapdiscourse = CanDiscourseClient(config["services"]["discourse"]["snap"])
     indico = Indico(config["services"]["indico"]["prod"])
-    sf = CanSalesforce(SF_COMPANY, SF_GDPR_OWNER, sid=args.sid, dry=args.dry)
+    profile = config["tools"].get("cangdpr", {}).get("profile", None)
+    binary = config["tools"].get("cangdpr", {}).get("binary", None)
+    sf = CanSalesforce(
+        SF_COMPANY,
+        SF_GDPR_OWNER,
+        sid=args.sid,
+        dry=args.dry,
+        profile=profile,
+        binary=binary,
+    )
 
     if args.debug:
         level = logging.DEBUG
