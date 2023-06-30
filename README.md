@@ -43,4 +43,8 @@ services:
     prod:
       url: 'https://events.canonical.com'
       key: 'your_indico_token_here'
+tools:
+  cangdpr:
+    profile: "/optional/path/to/persistant/profile"
+    binary: "/optional/path/to/specific/binary/of/firefox"
 ```
