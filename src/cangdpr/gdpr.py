@@ -72,8 +72,8 @@ def main():
     ubuntudiscourse = CanDiscourseClient(config["services"]["discourse"]["ubuntu"])
     snapdiscourse = CanDiscourseClient(config["services"]["discourse"]["snap"])
     indico = Indico(config["services"]["indico"]["prod"])
-    profile = config["tools"].get("cangdpr", {}).get("profile", None)
-    binary = config["tools"].get("cangdpr", {}).get("binary", None)
+    profile = config.get("tools", {}).get("cangdpr", {}).get("profile", None)
+    binary = config.get("tools", {}).get("cangdpr", {}).get("binary", None)
     sf = CanSalesforce(
         SF_COMPANY,
         SF_GDPR_OWNER,
