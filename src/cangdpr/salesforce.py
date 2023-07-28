@@ -90,8 +90,16 @@ class CanSalesforce:
 
         return data["records"][0]["Email__c"] if data["totalSize"] > 0 else None
 
-    def get_tasks(self):
-        query = "SELECT Id,Subject,WhatId,Email__c FROM Task WHERE OwnerId='{}' AND Status='Not Started'"
+    def get_tasks(self, since=None):
+        if since:
+            query = " ".join([
+                f"SELECT Id,Subject,WhatId,Email__c FROM Task WHERE OwnerId='{self.gdpr_owner}' AND",
+                f"Status='Completed' AND CreatedDate = LAST_N_MONTHS:{since}"
+            ])
+
+        else:
+            query = "SELECT Id,Subject,WhatId,Email__c FROM Task WHERE OwnerId='{}' AND Status='Not Started'"
+
         r = self._soql_query(query.format(self.gdpr_owner))
 
         try:

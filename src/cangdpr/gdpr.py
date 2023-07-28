@@ -81,8 +81,9 @@ class Context:
 )
 @click.option("--dry", is_flag=True, default=False, help="Dry run on Salesforce.")
 @click.option("--sid", help="Salesforce token.")
+@click.option("--since", type=int, help="Look back N months instead of taking open items.")
 @click.argument("emails", required=False, nargs=-1)
-def main(debug, config, query_tasks, dry, sid, emails):
+def main(debug, config, query_tasks, dry, sid, since, emails):
     """
     GDPR lookup for the community team at Canonical
 
@@ -109,7 +110,7 @@ def main(debug, config, query_tasks, dry, sid, emails):
     if len(emails):
         lookup_gdpr(ctxo, emails, query_tasks)
     else:
-        lookup_salesforce_gdpr(ctxo)
+        lookup_salesforce_gdpr(ctxo, since)
 
 
 def lookup_gdpr(ctxo, emails, query_tasks=False):
@@ -124,8 +125,9 @@ def lookup_gdpr(ctxo, emails, query_tasks=False):
             print("{}:\n\t{}".format(email, "\n\t".join(urls)))
 
 
-def lookup_salesforce_gdpr(ctxo):
-    tasks = ctxo.sf.get_tasks()
+def lookup_salesforce_gdpr(ctxo, since=None):
+    tasks = ctxo.sf.get_tasks(since)
+
     for record in tasks:
         urls = ctxo.profile_urls_get(record.email)
         if len(urls) < 1:
