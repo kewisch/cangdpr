@@ -11,6 +11,7 @@ dependencies = [
   "pydiscourse",
   "requests-html",
   "pyyaml",
+  "click",
 ]
 [project.urls]
 homepage = "https://github.com/kewisch/cangdpr"

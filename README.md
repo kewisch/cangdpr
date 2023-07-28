@@ -45,6 +45,29 @@ services:
       key: 'your_indico_token_here'
 tools:
   cangdpr:
+    discourses:
+      ubuntu:
+        dataquery_gdpr_id: NNN          # This is the id of the data explorer query to look up all emails
+      snap:
+        dataquery_gdpr_id: NNN
     profile: "/optional/path/to/persistant/profile"
     binary: "/optional/path/to/specific/binary/of/firefox"
+```
+
+
+For each discourse instance, you need to create a data explorer query that will look up all emails (also secondary).
+* In the admin UI, go to Plugins -> Data Explorer
+* Click on the + sign, enter gdpr_email_lookup as the name, then Create New
+* Enter below SQL into the textbox
+* Save and run, testing with an email address you know
+
+
+```sql
+-- [params]
+-- string :email
+
+SELECT u.id, u.username, ue.email
+  FROM user_emails ue
+  JOIN users u ON u.id = ue.user_id
+ WHERE email = :email
 ```

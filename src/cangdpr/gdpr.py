@@ -1,10 +1,9 @@
-import argparse
 import http.client
 import logging
 import os.path
 import stat
-import sys
 
+import click
 import yaml
 
 from .discourse import CanDiscourseClient
@@ -15,113 +14,134 @@ SF_GDPR_OWNER = "00G4K000000gkG9UAI"  # Assignee: GDPR - Snap
 SF_COMPANY = "canonical"
 
 
-def main():
-    def profile_urls_get(email):
+class Context:
+    def __init__(self, config, sid=None, dry=False, debug=False):
+        self.toolconfig = config["tools"]["cangdpr"]
+        self.serviceconfig = config["services"]
+        self.debug = debug
+
+        self.discourses = []
+        for discourse, data in self.toolconfig.get("discourses", {}).items():
+            if discourse not in self.serviceconfig.get("discourse", {}):
+                raise Exception("Missing discourse: " + discourse)
+
+            self.discourses.append(
+                CanDiscourseClient(self.serviceconfig["discourse"][discourse], data)
+            )
+
+        if not len(self.discourses):
+            raise click.UsageError("Missing discourse config")
+
+        try:
+            self.indico = Indico(self.serviceconfig["indico"]["prod"])
+        except KeyError:
+            raise click.UsageError("Missing indico config")
+
+        profile = self.toolconfig.get("profile", None)
+        binary = self.toolconfig.get("binary", None)
+        self.sf = CanSalesforce(
+            SF_COMPANY,
+            SF_GDPR_OWNER,
+            sid=sid,
+            dry=dry,
+            profile=profile,
+            binary=binary,
+        )
+
+        if debug:
+            logging.basicConfig()
+            logging.getLogger().setLevel(logging.DEBUG)
+            requests_log = logging.getLogger("requests.packages.urllib3")
+            requests_log.setLevel(logging.DEBUG)
+            requests_log.propagate = True
+            http.client.HTTPConnection.debuglevel = 1
+
+    def profile_urls_get(self, email):
         urls = []
-        data = ubuntudiscourse.user_by_email(email)
-        if len(data):
-            urls.append(ubuntudiscourse.format_user(data[0]))
+        for discourse in self.discourses:
+            user = discourse.dataquery_gdpr_user(email)
+            if user:
+                urls.append(discourse.format_user(user))
 
-        data = snapdiscourse.user_by_email(email)
-        if len(data):
-            urls.append(snapdiscourse.format_user(data[0]))
-
-        data = indico.user_by_email(email)
+        data = self.indico.user_by_email(email)
         if data:
-            urls.append(indico.format_user(data[0]))
+            urls.append(self.indico.format_user(data[0]))
 
         return urls
 
-    parser = argparse.ArgumentParser(
-        prog="cangdpr",
-        description="GDPR lookup for the community team at Canonical",
-        epilog="If no email is specified, Salesforce will be queried for pending tasks",
-    )
-    parser.add_argument(
-        "email", nargs="*", help="one or more email addresses to look up"
-    )
-    parser.add_argument(
-        "-l",
-        "--query-tasks",
-        action="store_true",
-        help="Emails are task ids, not emails",
-    )
-    parser.add_argument(
-        "-n", "--dry", action="store_true", help="dry run on Salesforce"
-    )
-    parser.add_argument("-s", "--sid", help="Salesforce SID Cookie (optional)")
-    parser.add_argument("-d", "--debug", action="store_true", help="Enable debugging")
-    parser.add_argument(
-        "--config", default="~/.canonicalrc", help="Config file locataion"
-    )
-    args = parser.parse_args()
 
-    configpath = os.path.expanduser(args.config)
+@click.command()
+@click.option("--debug", is_flag=True, default=False, help="Enable debugging.")
+@click.option("--config", default="~/.canonicalrc", help="Config file location.")
+@click.option(
+    "-l",
+    "--query-tasks",
+    is_flag=True,
+    help="EMAILS are task ids, not email addresses.",
+)
+@click.option("--dry", is_flag=True, default=False, help="Dry run on Salesforce.")
+@click.option("--sid", help="Salesforce token.")
+@click.argument("emails", required=False, nargs=-1)
+def main(debug, config, query_tasks, dry, sid, emails):
+    """
+    GDPR lookup for the community team at Canonical
+
+    If no email is specified, Salesforce will be queried for pending tasks
+    """
+    configpath = os.path.expanduser(config)
+
     # Check if the config file is locked to mode 600. Add a loophole in case it is being passed in
     # via pipe, it appears on macOS the pipes are mode 660 instead.
     statinfo = os.stat(configpath, dir_fd=None, follow_symlinks=True)
     if (statinfo.st_mode & (stat.S_IROTH | stat.S_IRGRP)) != 0 and not stat.S_ISFIFO(
         statinfo.st_mode
     ):
-        print(f"Credentials file {configpath} is not chmod 600")
-        sys.exit(1)
+        raise click.ClickException(f"Credentials file {config} is not chmod 600")
 
     with open(configpath) as fd:
         config = yaml.safe_load(fd)
 
-    ubuntudiscourse = CanDiscourseClient(config["services"]["discourse"]["ubuntu"])
-    snapdiscourse = CanDiscourseClient(config["services"]["discourse"]["snap"])
-    indico = Indico(config["services"]["indico"]["prod"])
-    profile = config.get("tools", {}).get("cangdpr", {}).get("profile", None)
-    binary = config.get("tools", {}).get("cangdpr", {}).get("binary", None)
-    sf = CanSalesforce(
-        SF_COMPANY,
-        SF_GDPR_OWNER,
-        sid=args.sid,
-        dry=args.dry,
-        profile=profile,
-        binary=binary,
-    )
+    if not config:
+        raise click.ClickException(f"Could not load config file {configpath}")
 
-    if args.debug:
-        level = logging.DEBUG
-        logging.basicConfig()
-        logging.getLogger().setLevel(level)
-        requests_log = logging.getLogger("requests.packages.urllib3")
-        requests_log.setLevel(level)
-        requests_log.propagate = True
+    ctxo = Context(config, debug=debug, sid=sid, dry=dry)
 
-        if level == logging.DEBUG:
-            http.client.HTTPConnection.debuglevel = 1
-
-    if len(args.email):
-        for email in args.email:
-            if args.query_tasks:
-                email = sf.get_task_email(email)
-
-            urls = profile_urls_get(email)
-            if len(urls) < 1:
-                print("{} has no account data".format(email))
-            else:
-                print("{}:\n\t{}".format(email, "\n\t".join(urls)))
+    if len(emails):
+        lookup_gdpr(ctxo, emails, query_tasks)
     else:
-        data = sf.get_tasks()
-        for record in data:
-            urls = profile_urls_get(record.email)
-            if len(urls) < 1:
-                print(
-                    "{} ({}) has no account data, marking complete".format(
-                        record.email, record.id
-                    )
+        lookup_salesforce_gdpr(ctxo)
+
+
+def lookup_gdpr(ctxo, emails, query_tasks=False):
+    for email in emails:
+        if query_tasks:
+            email = ctxo.sf.get_task_email(email)
+
+        urls = ctxo.profile_urls_get(email)
+        if len(urls) < 1:
+            print("{} has no account data".format(email))
+        else:
+            print("{}:\n\t{}".format(email, "\n\t".join(urls)))
+
+
+def lookup_salesforce_gdpr(ctxo):
+    tasks = ctxo.sf.get_tasks()
+    for record in tasks:
+        urls = ctxo.profile_urls_get(record.email)
+        if len(urls) < 1:
+            print(
+                "{} ({}) has no account data, marking complete".format(
+                    record.email, record.id
                 )
-                sf.mark_complete(record.id)
-            else:
-                print(
-                    "{}: {}\n\t{}".format(
-                        record.email, sf.task_url(record.id), "\n\t".join(urls)
-                    )
+            )
+            ctxo.sf.mark_complete(record.id)
+        else:
+            print(
+                "{}: {}\n\t{}".format(
+                    record.email, ctxo.sf.task_url(record.id), "\n\t".join(urls)
                 )
+            )
 
 
 if __name__ == "__main__":
-    main()
+    main(prog="cangdpr")
