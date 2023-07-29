@@ -9,25 +9,29 @@ class CanDiscourseClient(DiscourseClient):
         super().__init__(
             config["url"], api_username=config["username"], api_key=config["key"]
         )
-        self.extradata = extradata
+        self.extradata = extradata or {}
 
     def dataquery_gdpr_user(self, email):
         if "dataquery_gdpr_id" not in self.extradata:
-            raise Exception(f"Missing dataquery_gdpr_id in {self.host} config")
+            data = self.user_by_email(email)
+            if len(data) == 0:
+                return None
 
-        dqid = self.extradata["dataquery_gdpr_id"]
-        resp = self._post(
-            f"/admin/plugins/explorer/queries/{dqid}/run",
-            params=json.dumps({"email": email}),
-        )
-        if not resp["success"]:
-            raise Exception("Data query failed: " + str(resp))
+            return data[0]
+        else:
+            dqid = self.extradata["dataquery_gdpr_id"]
+            resp = self._post(
+                f"/admin/plugins/explorer/queries/{dqid}/run",
+                params=json.dumps({"email": email}),
+            )
+            if not resp["success"]:
+                raise Exception("Data query failed: " + str(resp))
 
-        if len(resp["rows"]) == 0:
-            return None
+            if len(resp["rows"]) == 0:
+                return None
 
-        uid, username, email = resp["rows"][0]
-        return {"id": uid, "username": username, "email": email}
+            uid, username, email = resp["rows"][0]
+            return {"id": uid, "username": username, "email": email}
 
     def format_user(self, user):
         return urljoin(

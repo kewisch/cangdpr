@@ -92,10 +92,12 @@ class CanSalesforce:
 
     def get_tasks(self, since=None):
         if since:
-            query = " ".join([
-                f"SELECT Id,Subject,WhatId,Email__c FROM Task WHERE OwnerId='{self.gdpr_owner}' AND",
-                f"Status='Completed' AND CreatedDate = LAST_N_MONTHS:{since}"
-            ])
+            query = " ".join(
+                [
+                    f"SELECT Id,Subject,WhatId,Email__c FROM Task WHERE OwnerId='{self.gdpr_owner}' AND",
+                    f"Status='Completed' AND CreatedDate = LAST_N_MONTHS:{since}",
+                ]
+            )
 
         else:
             query = "SELECT Id,Subject,WhatId,Email__c FROM Task WHERE OwnerId='{}' AND Status='Not Started'"

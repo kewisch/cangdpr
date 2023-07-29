@@ -81,7 +81,9 @@ class Context:
 )
 @click.option("--dry", is_flag=True, default=False, help="Dry run on Salesforce.")
 @click.option("--sid", help="Salesforce token.")
-@click.option("--since", type=int, help="Look back N months instead of taking open items.")
+@click.option(
+    "--since", type=int, help="Look back N months instead of taking open items."
+)
 @click.argument("emails", required=False, nargs=-1)
 def main(debug, config, query_tasks, dry, sid, since, emails):
     """
