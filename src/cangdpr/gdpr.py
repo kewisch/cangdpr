@@ -5,6 +5,7 @@ import stat
 
 import click
 import yaml
+from pydiscourse.exceptions import DiscourseClientError
 
 from .discourse import CanDiscourseClient
 from .indico import Indico
@@ -26,7 +27,9 @@ class Context:
                 raise Exception("Missing discourse: " + discourse)
 
             self.discourses.append(
-                CanDiscourseClient(self.serviceconfig["discourse"][discourse], data)
+                CanDiscourseClient(
+                    discourse, self.serviceconfig["discourse"][discourse], data
+                )
             )
 
         if not len(self.discourses):
@@ -70,22 +73,13 @@ class Context:
         return urls
 
 
-@click.command()
+@click.group(invoke_without_command=True)
 @click.option("--debug", is_flag=True, default=False, help="Enable debugging.")
 @click.option("--config", default="~/.canonicalrc", help="Config file location.")
-@click.option(
-    "-l",
-    "--query-tasks",
-    is_flag=True,
-    help="EMAILS are task ids, not email addresses.",
-)
 @click.option("--dry", is_flag=True, default=False, help="Dry run on Salesforce.")
 @click.option("--sid", help="Salesforce token.")
-@click.option(
-    "--since", type=int, help="Look back N months instead of taking open items."
-)
-@click.argument("emails", required=False, nargs=-1)
-def main(debug, config, query_tasks, dry, sid, since, emails):
+@click.pass_context
+def main(ctx, debug, config, dry, sid):
     """
     GDPR lookup for the community team at Canonical
 
@@ -107,15 +101,22 @@ def main(debug, config, query_tasks, dry, sid, since, emails):
     if not config:
         raise click.ClickException(f"Could not load config file {configpath}")
 
-    ctxo = Context(config, debug=debug, sid=sid, dry=dry)
+    ctx.obj = Context(config, debug=debug, sid=sid, dry=dry)
 
-    if len(emails):
-        lookup_gdpr(ctxo, emails, query_tasks)
-    else:
-        lookup_salesforce_gdpr(ctxo, since)
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(sftasks)
 
 
-def lookup_gdpr(ctxo, emails, query_tasks=False):
+@main.command()
+@click.option(
+    "-l",
+    "--query-tasks",
+    is_flag=True,
+    help="EMAILS are task ids, not email addresses.",
+)
+@click.argument("emails", required=False, nargs=-1)
+@click.pass_obj
+def lookup(ctxo, query_tasks, emails):
     for email in emails:
         if query_tasks:
             email = ctxo.sf.get_task_email(email)
@@ -127,7 +128,12 @@ def lookup_gdpr(ctxo, emails, query_tasks=False):
             print("{}:\n\t{}".format(email, "\n\t".join(urls)))
 
 
-def lookup_salesforce_gdpr(ctxo, since=None):
+@main.command()
+@click.option(
+    "--since", type=int, help="Look back N months instead of taking open items."
+)
+@click.pass_obj
+def sftasks(ctxo, since):
     tasks = ctxo.sf.get_tasks(since)
 
     for record in tasks:
@@ -145,6 +151,69 @@ def lookup_salesforce_gdpr(ctxo, since=None):
                     record.email, ctxo.sf.task_url(record.id), "\n\t".join(urls)
                 )
             )
+
+
+@main.command()
+@click.argument("username")
+@click.pass_obj
+def newuser(ctxo, username):
+    config = {
+        "services": {"discourse": {}},
+        "tools": {
+            "cangdpr": {"discourses": ctxo.toolconfig["discourses"]},
+            "profile": "/path/to/a/new/firefox/profile",
+        },
+    }
+
+    def represent_none(self, _):
+        return self.represent_scalar("tag:yaml.org,2002:null", "")
+
+    yaml.add_representer(type(None), represent_none)
+
+    for discourse in ctxo.discourses:
+        print(f"Processing {discourse.name}")
+        print("\tCreating API key...", end="", flush=True)
+        keydesc = "GDPR " + username
+        keys = discourse.get_api_keys()
+        foundkey = next(
+            (
+                key
+                for key in keys
+                if key["revoked_at"] is None and key["description"] == keydesc
+            ),
+            None,
+        )
+        if foundkey:
+            print(f"already exsists ({foundkey['truncated_key']}...)")
+            config["services"]["discourse"][discourse.name] = {
+                "url": discourse.host,
+                "username": username,
+                "key": foundkey["truncated_key"] + "... (please check your records)",
+            }
+        else:
+            key = discourse.create_api_key(username, "GDPR " + username)
+            config["services"]["discourse"][discourse.name] = {
+                "url": discourse.host,
+                "username": username,
+                "key": key,
+            }
+            print("done")
+
+        group = discourse.group("gdpr_lookups")
+        if group:
+            try:
+                print(
+                    f"\tAdding {username} to gdpr_lookups group...", end="", flush=True
+                )
+                discourse.group_add_user(group["id"], username)
+                print("done")
+            except DiscourseClientError as e:
+                if "already a member" not in str(e):
+                    raise e
+                print("already a member")
+
+    print("\nHere is your config:\n")
+    print(yaml.dump(config))
 
 
 if __name__ == "__main__":
