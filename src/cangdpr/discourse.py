@@ -17,6 +17,9 @@ class CanDiscourseClient(DiscourseClient):
     def _jsonpost(self, path, data):
         return self._jsonrequest("POST", path, data)
 
+    def _jsonput(self, path, data):
+        return self._jsonrequest("PUT", path, data)
+
     def _jsonrequest(self, verb, path, data):
         url = self.host + path
 
@@ -62,10 +65,65 @@ class CanDiscourseClient(DiscourseClient):
         data = self._get(f"/g/{group_name}.json")
         return data["group"]
 
+    def add_group(
+        self,
+        group_name,
+        full_name,
+        bio="",
+        usernames="",
+        owner_usernames="",
+        visibility_level=0,
+        members_visibility_level=0,
+        mentionable_level=0,
+        messageable_level=0,
+        primary_group=False,
+        public_admission=False,
+        public_exit=False,
+    ):
+        data = {
+            "group": {
+                "name": group_name,
+                "full_name": full_name,
+                "bio_raw": bio,
+                "usernames": usernames,
+                "owner_usernames": owner_usernames,
+                "visibility_level": visibility_level,
+                "members_visibility_level": members_visibility_level,
+                "primary_group": primary_group,
+                "public_admission": public_admission,
+                "public_exit": public_exit,
+                "mentionable_level": mentionable_level,
+                "messageable_level": messageable_level,
+            }
+        }
+
+        return self._jsonpost("/admin/groups.json", data=data)
+
     def group_add_user(self, group_id, username):
         return self._put(
             f"/groups/{group_id}/members.json", usernames=username, notify_users=False
         )
+
+    def data_explorer_queries(self):
+        data = self._get("/admin/plugins/explorer/queries.json")
+        return data["queries"]
+
+    def data_explorer_create_query(self, name):
+        data = {"query": {"name": name}}
+
+        data = self._jsonpost("/admin/plugins/explorer/queries", data=data)
+        return data["query"]
+
+    def data_explorer_edit_query(self, query_id, sql, group_ids=None):
+        data = {
+            "query[sql]": sql,
+        }
+
+        if group_ids:
+            data["query[group_ids][]"] = group_ids
+
+        data = self._put(f"/admin/plugins/explorer/queries/{query_id}", **data)
+        return data["query"]
 
     def dataquery_gdpr_user(self, email):
         if "dataquery_gdpr_id" not in self.extradata:

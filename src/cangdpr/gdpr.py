@@ -5,7 +5,7 @@ import stat
 
 import click
 import yaml
-from pydiscourse.exceptions import DiscourseClientError
+from pydiscourse.exceptions import DiscourseClientError, DiscourseError
 
 from .discourse import CanDiscourseClient
 from .indico import Indico
@@ -13,6 +13,22 @@ from .salesforce import CanSalesforce
 
 SF_GDPR_OWNER = "00G4K000000gkG9UAI"  # Assignee: GDPR - Snap
 SF_COMPANY = "canonical"
+
+DISCOURSE_USER_SQL = (
+    """
+-- [params]
+-- string :email
+
+SELECT u.id, u.username, ue.email
+  FROM user_emails ue
+  JOIN users u ON u.id = ue.user_id
+ WHERE email = :email
+"""
+).strip()
+
+yaml.add_representer(
+    type(None), lambda self, _: self.represent_scalar("tag:yaml.org,2002:null", "")
+)
 
 
 class Context:
@@ -158,17 +174,20 @@ def sftasks(ctxo, since):
 @click.pass_obj
 def newuser(ctxo, username):
     config = {
-        "services": {"discourse": {}},
+        "services": {
+            "discourse": {},
+            "indico": {
+                "prod": {
+                    "url": "https://events.canonical.com",
+                    "key": "Set this up on https://events.canonical.com/user/tokens/",
+                }
+            },
+        },
         "tools": {
             "cangdpr": {"discourses": ctxo.toolconfig["discourses"]},
             "profile": "/path/to/a/new/firefox/profile",
         },
     }
-
-    def represent_none(self, _):
-        return self.represent_scalar("tag:yaml.org,2002:null", "")
-
-    yaml.add_representer(type(None), represent_none)
 
     for discourse in ctxo.discourses:
         print(f"Processing {discourse.name}")
@@ -199,7 +218,14 @@ def newuser(ctxo, username):
             }
             print("done")
 
-        group = discourse.group("gdpr_lookups")
+        try:
+            group = discourse.group("gdpr_lookups")
+        except DiscourseClientError as e:
+            if "resource could not be found" not in str(e):
+                raise e
+            print("\tDiscourse does not have lookups group")
+            group = None
+
         if group:
             try:
                 print(
@@ -213,6 +239,95 @@ def newuser(ctxo, username):
                 print("already a member")
 
     print("\nHere is your config:\n")
+    print(yaml.dump(config))
+
+
+@main.command()
+@click.argument("alias")
+@click.argument("url", required=False)
+@click.argument("username", required=False)
+@click.pass_obj
+def newdiscourse(ctxo, alias, url, username):
+    if alias in ctxo.serviceconfig["discourse"]:
+        key = ctxo.serviceconfig["discourse"][alias]["key"]
+        url = url or ctxo.serviceconfig["discourse"][alias]["url"]
+        username = username or ctxo.serviceconfig["discourse"][alias]["username"]
+    else:
+        if not url or not username:
+            raise click.BadUsage("url and username are mandatory for new discourses")
+
+        if not url.startswith("http"):
+            url = "https://" + url
+
+        print("Please enter your API key from an admin account: ", end="", flush=True)
+        key = input()
+
+    config = {
+        "services": {
+            "discourse": {alias: {"url": url, "username": username, "key": key}}
+        },
+        "tools": {"cangdpr": {"discourses": {alias: None}}},
+    }
+
+    discourse = CanDiscourseClient(alias, config["services"]["discourse"][alias], {})
+
+    try:
+        queries = discourse.data_explorer_queries()
+        supports_dataexplorer = True
+    except DiscourseClientError:
+        supports_dataexplorer = False
+
+    if supports_dataexplorer:
+        print("Discourse supports data explorer")
+        try:
+            print("Creating gdpr_lookups group...", end="", flush=True)
+            group = discourse.add_group(
+                "gdpr_lookups",
+                "Permissions for GDPR Lookups",
+                owner_usernames=username,
+                visibility_level=4,
+                members_visibility_level=4,
+                mentionable_level=0,
+                messageable_level=0,
+            )
+            print("done")
+        except DiscourseError as e:
+            if "Name has already been taken" not in str(e):
+                raise e
+            print("group already exists")
+            group = discourse.group("gdpr_lookups")
+
+        gdprquery = next(
+            (query for query in queries if query["name"] == "gdpr_email_lookup"), None
+        )
+
+        if not gdprquery:
+            print("GDPR lookup query missing, creating now...", end="", flush=True)
+            gdprquery = discourse.data_explorer_create_query("gdpr_email_lookup")
+            print("done")
+
+        print("Setting query SQL and permissions...", end="", flush=True)
+        if (
+            gdprquery["sql"] != DISCOURSE_USER_SQL
+            or group["id"] not in gdprquery["group_ids"]
+        ):
+            discourse.data_explorer_edit_query(
+                gdprquery["id"], sql=DISCOURSE_USER_SQL, group_ids=group["id"]
+            )
+            print("done")
+        else:
+            print("already correct")
+
+        config["tools"]["cangdpr"]["discourses"][alias] = {
+            "dataquery_gdpr_id": gdprquery["id"]
+        }
+    else:
+        print(
+            "Discourse does not support data explorer. Lookup only covers primary email."
+        )
+        print("All that is needed is people having moderator permissions")
+
+    print("Here is your config")
     print(yaml.dump(config))
 
 
