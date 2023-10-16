@@ -66,7 +66,7 @@ class CanSalesforce:
         driver.get("https://{}.my.salesforce.com/".format(self.company))
         wait.until(waiter)
 
-        driver.get("https://{}.my.salesforce.com/404".format(self.company))
+        driver.get("https://{}.my.salesforce.com/services/data/".format(self.company))
         sidcookie = driver.get_cookie("sid")
 
         driver.quit()
