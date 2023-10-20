@@ -3,7 +3,7 @@ from urllib.parse import urljoin
 
 import requests
 from pydiscourse import DiscourseClient
-from pydiscourse.exceptions import DiscourseError
+from pydiscourse.exceptions import DiscourseError, DiscourseClientError
 
 
 class CanDiscourseClient(DiscourseClient):
@@ -126,26 +126,34 @@ class CanDiscourseClient(DiscourseClient):
         return data["query"]
 
     def dataquery_gdpr_user(self, email):
-        if "dataquery_gdpr_id" not in self.extradata:
+        fallback = True
+        if "dataquery_gdpr_id" in self.extradata:
+            fallback = False
+            dqid = self.extradata["dataquery_gdpr_id"]
+            try:
+                resp = self._post(
+                    f"/admin/plugins/explorer/queries/{dqid}/run",
+                    params=json.dumps({"email": email}),
+                )
+                if not resp["success"]:
+                    raise Exception("Data query failed: " + str(resp))
+
+                if len(resp["rows"]) == 0:
+                    return None
+
+                uid, username, email = resp["rows"][0]
+                return {"id": uid, "username": username, "email": email}
+            except DiscourseClientError as e:
+                if e.response.status_code == 404:
+                    print(f"Warning: {self.name} is configured for dataquery but the endpoint is 404")
+                    fallback = True
+
+        if fallback:
             data = self.user_by_email(email)
             if len(data) == 0:
                 return None
 
             return data[0]
-        else:
-            dqid = self.extradata["dataquery_gdpr_id"]
-            resp = self._post(
-                f"/admin/plugins/explorer/queries/{dqid}/run",
-                params=json.dumps({"email": email}),
-            )
-            if not resp["success"]:
-                raise Exception("Data query failed: " + str(resp))
-
-            if len(resp["rows"]) == 0:
-                return None
-
-            uid, username, email = resp["rows"][0]
-            return {"id": uid, "username": username, "email": email}
 
     def format_user(self, user):
         return urljoin(
