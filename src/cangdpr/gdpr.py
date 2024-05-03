@@ -152,21 +152,25 @@ def lookup(ctxo, query_tasks, emails):
 def sftasks(ctxo, since):
     tasks = ctxo.sf.get_tasks(since)
 
-    for record in tasks:
-        urls = ctxo.profile_urls_get(record.email)
-        if len(urls) < 1:
-            print(
-                "{} ({}) has no account data, marking complete".format(
-                    record.email, record.id
+    try:
+        for record in tasks:
+            urls = ctxo.profile_urls_get(record.email)
+            if len(urls) < 1:
+                print(
+                    "{} ({}) has no account data, marking complete".format(
+                        record.email, record.id
+                    )
                 )
-            )
-            ctxo.sf.mark_complete(record.id)
-        else:
-            print(
-                "{}: {}\n\t{}".format(
-                    record.email, ctxo.sf.task_url(record.id), "\n\t".join(urls)
+                ctxo.sf.mark_complete(record.id)
+            else:
+                print(
+                    "{}: {}\n\t{}".format(
+                        record.email, ctxo.sf.task_url(record.id), "\n\t".join(urls)
+                    )
                 )
-            )
+
+    except pydiscourse.exceptions.DiscourseServerError as e:
+        print("Discourse Error: ", str(e), e.request.url)
 
 
 @main.command()
