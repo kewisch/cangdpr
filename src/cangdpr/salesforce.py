@@ -5,8 +5,8 @@ from urllib.parse import urljoin
 
 import requests
 from selenium import webdriver
-from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
 from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 
 
@@ -14,7 +14,14 @@ class CanSalesforce:
     Record = namedtuple("SFRecord", "id,email")
 
     def __init__(
-        self, company, gdpr_owner, sid=None, dry=False, profile=None, binary=None
+        self,
+        company,
+        gdpr_owner,
+        sid=None,
+        dry=False,
+        profile=None,
+        binary=None,
+        geckodriver=None,
     ):
         self.company = company
         self.gdpr_owner = gdpr_owner
@@ -22,6 +29,7 @@ class CanSalesforce:
         self.dry = dry
         self.profile = profile
         self.binary = binary
+        self.geckodriver = geckodriver
 
     @property
     def base_url(self):
@@ -57,10 +65,11 @@ class CanSalesforce:
             options.profile = profile
 
         if self.binary:
-            binary = FirefoxBinary(self.binary)
-            options.binary = binary
+            options.binary_location = self.binary
 
-        driver = webdriver.Firefox(options=options)
+        service = Service(self.geckodriver)
+
+        driver = webdriver.Firefox(service=service, options=options)
         wait = WebDriverWait(driver, 500)
 
         driver.get("https://{}.my.salesforce.com/".format(self.company))

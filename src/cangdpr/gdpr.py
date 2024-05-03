@@ -58,6 +58,7 @@ class Context:
 
         profile = self.toolconfig.get("profile", None)
         binary = self.toolconfig.get("binary", None)
+        geckodriver = self.toolconfig.get("geckodriver", None)
         self.sf = CanSalesforce(
             SF_COMPANY,
             SF_GDPR_OWNER,
@@ -65,6 +66,7 @@ class Context:
             dry=dry,
             profile=profile,
             binary=binary,
+            geckodriver=geckodriver,
         )
 
         if debug:

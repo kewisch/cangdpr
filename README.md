@@ -52,6 +52,7 @@ tools:
         dataquery_gdpr_id: NNN
     profile: "/optional/path/to/persistant/profile"
     binary: "/optional/path/to/specific/binary/of/firefox"
+    geckodriver: "/optional/path/to/geckodriver"
 ```
 
 
