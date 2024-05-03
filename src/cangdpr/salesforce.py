@@ -80,7 +80,7 @@ class CanSalesforce:
 
         driver.quit()
 
-        logging.debug("SID Cookie is " + sidcookie["value"])
+        print("SID Cookie is " + sidcookie["value"])
 
         return sidcookie["value"]
 
