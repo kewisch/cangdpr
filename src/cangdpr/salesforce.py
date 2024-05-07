@@ -52,10 +52,7 @@ class CanSalesforce:
     def _get_sid_cookie(self):
         def waiter(driver):
             return (
-                driver.current_url
-                == "https://{}.lightning.force.com/lightning/page/home".format(
-                    self.company
-                )
+                driver.current_url.startswith("https://{}.lightning.force.com/lightning".format(self.company))
             )
 
         options = Options()
@@ -67,7 +64,10 @@ class CanSalesforce:
         if self.binary:
             options.binary_location = self.binary
 
-        service = Service(self.geckodriver)
+        if self.geckodriver:
+            service = Service(self.geckodriver)
+        else:
+            service = Service()
 
         driver = webdriver.Firefox(service=service, options=options)
         wait = WebDriverWait(driver, 500)
