@@ -1,11 +1,14 @@
-import http.client
 import logging
 import os.path
 import stat
 
 import click
 import yaml
-from pydiscourse.exceptions import DiscourseClientError, DiscourseError
+from pydiscourse.exceptions import (
+    DiscourseClientError,
+    DiscourseError,
+    DiscourseServerError,
+)
 
 from .discourse import CanDiscourseClient
 from .indico import Indico
@@ -71,11 +74,12 @@ class Context:
 
         if debug:
             logging.basicConfig()
-            logging.getLogger().setLevel(logging.DEBUG)
+            logging.getLogger("cangdpr").setLevel(logging.DEBUG)
             requests_log = logging.getLogger("requests.packages.urllib3")
             requests_log.setLevel(logging.DEBUG)
             requests_log.propagate = True
-            http.client.HTTPConnection.debuglevel = 1
+            # This one is a bit too verbose
+            # http.client.HTTPConnection.debuglevel = 1
 
     def profile_urls_get(self, email):
         urls = []
@@ -171,7 +175,7 @@ def sftasks(ctxo, since):
                     )
                 )
 
-    except pydiscourse.exceptions.DiscourseServerError as e:
+    except DiscourseServerError as e:
         print("Discourse Error: ", str(e), e.request.url)
 
 

@@ -9,6 +9,8 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 
+logger = logging.getLogger(__name__)
+
 
 class CanSalesforce:
     Record = namedtuple("SFRecord", "id,email")
@@ -42,7 +44,7 @@ class CanSalesforce:
 
     def _soql_query(self, query):
         soql_query_url = urljoin(self.base_url, "query")
-        logging.debug("SOQL QUERY IS: " + query)
+        logger.debug("SOQL QUERY IS: " + query)
         return requests.get(soql_query_url, headers=self.headers, params={"q": query})
 
     def ensure_sid(self):
@@ -51,8 +53,8 @@ class CanSalesforce:
 
     def _get_sid_cookie(self):
         def waiter(driver):
-            return (
-                driver.current_url.startswith("https://{}.lightning.force.com/lightning".format(self.company))
+            return driver.current_url.startswith(
+                "https://{}.lightning.force.com/lightning".format(self.company)
             )
 
         options = Options()
@@ -69,13 +71,19 @@ class CanSalesforce:
         else:
             service = Service()
 
+        logger.debug(
+            f"Starting Firefox (profile={self.profile},binary={self.binary},geckodriver={self.geckodriver})"
+        )
+
         driver = webdriver.Firefox(service=service, options=options)
         wait = WebDriverWait(driver, 500)
 
         driver.get("https://{}.my.salesforce.com/".format(self.company))
+        logger.debug("Waiting until login is complete")
         wait.until(waiter)
 
         driver.get("https://{}.my.salesforce.com/services/data/".format(self.company))
+        logger.debug("Visiting cookie page")
         sidcookie = driver.get_cookie("sid")
 
         driver.quit()
