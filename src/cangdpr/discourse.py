@@ -61,6 +61,9 @@ class CanDiscourseClient(DiscourseClient):
         data = self._get("/admin/api/keys.json")
         return data["keys"]
 
+    def revoke_api_key(self, keyid):
+        self._post(f"/admin/api/keys/{keyid}/revoke")
+
     def group(self, group_name):
         data = self._get(f"/g/{group_name}.json")
         return data["group"]
@@ -104,6 +107,11 @@ class CanDiscourseClient(DiscourseClient):
             f"/groups/{group_id}/members.json", usernames=username, notify_users=False
         )
 
+    def group_remove_user(self, group_id, username):
+        return self._delete(
+            f"/groups/{group_id}/members.json", usernames=username, notify_users=False
+        )
+
     def data_explorer_queries(self):
         data = self._get("/admin/plugins/explorer/queries.json")
         return data["queries"]
@@ -124,6 +132,9 @@ class CanDiscourseClient(DiscourseClient):
 
         data = self._put(f"/admin/plugins/explorer/queries/{query_id}", **data)
         return data["query"]
+
+    def grant_moderation(self, userid):
+        return self._put(f"/admin/users/{userid}/grant_moderation")
 
     def dataquery_gdpr_user(self, email):
         fallback = True

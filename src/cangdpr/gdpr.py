@@ -201,6 +201,8 @@ def newuser(ctxo, username):
 
     for discourse in ctxo.discourses:
         print(f"Processing {discourse.name}")
+        user = discourse.user(username)
+
         print("\tCreating API key...", end="", flush=True)
         keydesc = "GDPR " + username
         keys = discourse.get_api_keys()
@@ -247,9 +249,63 @@ def newuser(ctxo, username):
                 if "already a member" not in str(e):
                     raise e
                 print("already a member")
+        else:
+            # No gdpr_lookups means we need moderation
+            discourse.grant_moderation(user["id"])
 
     print("\nHere is your config:\n")
     print(yaml.dump(config))
+
+
+@main.command()
+@click.argument("username")
+@click.pass_obj
+def removeuser(ctxo, username):
+    for discourse in ctxo.discourses:
+        try:
+            print(f"Processing {discourse.name}")
+
+            # Make sure we actually have that user
+            discourse.user(username)
+
+            try:
+                group = discourse.group("gdpr_lookups")
+            except DiscourseClientError as e:
+                if "resource could not be found" not in str(e):
+                    raise e
+                print("\tDiscourse does not have lookups group")
+                group = None
+
+            if group:
+                try:
+                    print(
+                        f"\tRemoving {username} from gdpr_lookups group...",
+                        end="",
+                        flush=True,
+                    )
+                    discourse.group_remove_user(group["id"], username)
+                    print("done")
+                except DiscourseClientError as e:
+                    if "already a member" not in str(e):
+                        raise e
+                    print("already a member")
+
+            keys = discourse.get_api_keys()
+            keydesc = "GDPR " + username
+            foundkey = next(
+                (
+                    key
+                    for key in keys
+                    if key["revoked_at"] is None and key["description"] == keydesc
+                ),
+                None,
+            )
+            if foundkey:
+                discourse.revoke_api_key(foundkey["id"])
+                print("\tRemoved API key")
+        except DiscourseClientError as e:
+            if "API username or key is invalid" not in str(e):
+                raise e
 
 
 @main.command()
